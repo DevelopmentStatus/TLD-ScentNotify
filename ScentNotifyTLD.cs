@@ -11,7 +11,7 @@ namespace ScentMod
     public class ScentNotify : MelonMod
     {
         private bool showNotification = false;
-        private bool isDangerNearby = false;
+        private AiMode? threatMode = null;
         private float timer = 0f;
         private float displayDuration = 3.5f;
         private float fadeOutDuration = 1.15f;
@@ -26,7 +26,7 @@ namespace ScentMod
 
             if (Input.GetKeyDown(KeyCode.Tab))
             {
-                isDangerNearby = DetectActiveThreats();
+                threatMode = DetectActiveThreats();
                 showNotification = true;
                 timer = displayDuration;
             }
@@ -61,40 +61,53 @@ namespace ScentMod
         private void DismissNotification()
         {
             showNotification = false;
+            threatMode = null;
             timer = 0f;
         }
 
-        private bool DetectActiveThreats()
+        /// If several animals qualify, the worst mode wins: Attack, then Stalking, then InvestigateSmell.
+        private AiMode? DetectActiveThreats()
         {
-            // Find all BaseAi components (wolves, bears, etc.)
             var animals = GameObject.FindObjectsOfType<BaseAi>();
-            if (animals == null) return false;
+            if (animals == null) return null;
 
             Vector3 playerPos = GameManager.GetPlayerTransform().position;
+            int bestPriority = 0;
+            AiMode? bestMode = null;
 
             foreach (var ai in animals)
             {
                 if (ai == null) continue;
 
-                // Matches Assembly-CSharp: BaseAi.GetAiMode(); death is AiMode.Dead (no IsDead())
                 AiMode currentMode = ai.GetAiMode();
                 if (currentMode == AiMode.Dead) continue;
 
-                // Stalking / smell investigation / attack (Scent was never an enum value; use InvestigateSmell)
-                if (currentMode == AiMode.Stalking || currentMode == AiMode.InvestigateSmell || currentMode == AiMode.Attack)
-                {
-                    // Check distance to ensure they are actually 'watching' or tracking us
-                    float distance = Vector3.Distance(ai.transform.position, playerPos);
+                if (currentMode != AiMode.Stalking && currentMode != AiMode.InvestigateSmell && currentMode != AiMode.Attack)
+                    continue;
 
-                    // 100 meters is the typical 'active' range for stalking/scent tracking
-                    if (distance < 100f)
-                    {
-                        return true;
-                    }
+                float distance = Vector3.Distance(ai.transform.position, playerPos);
+                if (distance >= 100f) continue;
+
+                int priority = currentMode == AiMode.Attack ? 3 : currentMode == AiMode.Stalking ? 2 : 1;
+                if (priority > bestPriority)
+                {
+                    bestPriority = priority;
+                    bestMode = currentMode;
                 }
             }
 
-            return false;
+            return bestMode;
+        }
+
+        private static string ThreatMessage(AiMode mode)
+        {
+            if (mode == AiMode.InvestigateSmell)
+                return "Something caught my scent.";
+            if (mode == AiMode.Stalking)
+                return "I'm being stalked.";
+            if (mode == AiMode.Attack)
+                return "I'm under attack!";
+            return "I'm being hunted!";
         }
 
         public override void OnGUI()
@@ -108,13 +121,12 @@ namespace ScentMod
                 style.fontSize = 28;
                 style.alignment = TextAnchor.MiddleCenter;
 
-                Color textColor = isDangerNearby ? Color.red : Color.white;
+                bool danger = threatMode.HasValue;
+                Color textColor = danger ? Color.red : Color.white;
                 textColor.a = alpha;
                 style.normal.textColor = textColor;
 
-                string message = isDangerNearby
-                    ? "I'm being hunted!"
-                    : "I'm safe, for now...";
+                string message = danger ? ThreatMessage(threatMode.Value) : "I'm safe, for now...";
 
                 GUI.Label(new Rect(0, Screen.height * 0.22f, Screen.width, 50f), message, style);
             }
