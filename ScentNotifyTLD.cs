@@ -3,7 +3,7 @@ using MelonLoader;
 using Il2Cpp;
 using Il2CppTLD.AI;
 
-[assembly: MelonInfo(typeof(ScentMod.ScentNotify), "Scent Notify", "1.0.0", "Krusty")]
+[assembly: MelonInfo(typeof(ScentMod.ScentNotify), "Scent Notify", "1.1.0", "Krusty")]
 [assembly: MelonGame("Hinterland", "TheLongDark")]
 
 namespace ScentMod
